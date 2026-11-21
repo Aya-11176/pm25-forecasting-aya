@@ -1,43 +1,197 @@
-pm25-forecasting-aya
-This repository contains the EDA, time-series analysis and data-preparation workflow for a PM2.5 forecasting project. The task is one-day-ahead forecasting: to predict PM2.5 on day t, model inputs must be available no later than day t-1.
 
-The current pipeline prepares the data and validation folds for the assigned Gradient Boosting model. Model comparison, hyper-parameter tuning, explainability and ablation are later project stages.
-Repository structure
-.
-├── data/                 # raw/ and processed/ data are local; CSVs are not included
+# PM2.5 Forecasting — EDA & Time-Series Analysis
+
+This repository contains the Exploratory Data Analysis (EDA), time-series analysis, feature engineering, and data-preparation workflow for a PM2.5 forecasting project.
+
+The task is **one-day-ahead forecasting**: to predict PM2.5 on day *t*, all model inputs must be available no later than day *t − 1*.
+
+The current pipeline prepares the dataset, constructs past-only predictors, and generates validation folds for the assigned Gradient Boosting model. Model comparison, hyperparameter tuning, explainability, and ablation studies belong to later project stages.
+
+---
+
+## Repository Structure
+
+```text
+pm25-forecasting-aya/
+│
+├── data/
+│   ├── raw/                 # Original dataset (not included)
+│   └── processed/           # Generated processed datasets
+│
 ├── notebooks/
-│   ├── 01_eda.ipynb
-│   └── 02_timeseries.ipynb
+│   ├── 01_eda.ipynb         # Exploratory Data Analysis
+│   └── 02_timeseries.ipynb  # Time-Series Analysis & Validation
+│
 ├── src/
-│   ├── config.py
-│   ├── preprocessing.py
-│   ├── features.py
-│   └── splits.py
-├── scripts/run_eda.py
-├── folds/                # saved temporal, spatial and diagnostic random folds
-├── results/              # committed summary tables
-├── figures/              # committed EDA figures
-├── reports/
-└── presentation/
-Dataset
-The expected input file is combined_gee_pm25.csv, placed at data/raw/combined_gee_pm25.csv for the Python scripts, or uploaded when running either notebook in Google Colab. The raw CSV is not included in this repository archive. Obtain it from the approved project source and verify its license and variable units before redistribution.
+│   ├── config.py            # Project configuration
+│   ├── preprocessing.py     # Data cleaning and preprocessing
+│   ├── features.py          # Feature engineering and selection
+│   └── splits.py            # Validation fold generation
+│
+├── scripts/
+│   └── run_eda.py           # EDA pipeline entry point
+│
+├── folds/                   # Saved validation folds
+├── results/                 # Generated summary tables
+├── figures/                 # EDA figures
+├── reports/                 # Project reports
+├── presentation/            # Project presentation
+│
+└── README.md
+```
 
-The project cleaning rule retains rows with PM2.5 present and strictly between 0 and 500, plus valid dates and station IDs. The README's previously reported row/station counts are dataset-dependent and should be confirmed by rerunning the pipeline against the exact source CSV.
-Setup
-Python 3.10 or newer is recommended.
+---
+
+## Dataset
+
+The project expects the following input file:
+
+`combined_gee_pm25.csv`
+
+For local execution, place it at:
+
+```text
+data/raw/combined_gee_pm25.csv
+```
+
+When using Google Colab, upload the original CSV when required by the notebook.
+
+**Note:** The raw dataset is not included in this repository. Obtain it from the approved project source and verify its license and variable units before redistribution.
+
+### Data Cleaning
+
+The preprocessing workflow retains observations satisfying the following conditions:
+
+- PM2.5 is present.
+- PM2.5 is strictly between 0 and 500.
+- The date is valid.
+- The station ID is available.
+
+Dataset statistics, including the number of retained observations and stations, should be confirmed by rerunning the pipeline using the exact source CSV.
+
+---
+
+## Installation & Setup
+
+**Requirements:** Python 3.10 or newer.
+
+Install the project dependencies from the repository root:
+
+```bash
 python -m pip install -r requirements
-Running the project
-Run commands from the repository root after placing the source CSV at data/raw/combined_gee_pm25.csv.
-1. Clean the data and build EDA summary tables:
-python scripts/run_eda.py
-2. Build the one-day-ahead feature dataset:
-python -m src.features
-3. Generate the temporal, spatial and random-diagnostic folds:
-python -m src.splits
-src.features.get_model_feature_columns() returns the explicit whitelist of past-only predictors. Raw same-day measurements and station metadata may remain in the engineered table for auditing, but must not be passed to the model. The expected count is 23 when all nine source predictors and all engineered feature families are available; the actual count is printed at runtime.
+```
 
-Fold indices refer to rows of the development dataset after sorting and resetting the index. The final future test period is 2025-04-07 through 2026-04-06. Random K-fold is diagnostic only; temporal and spatial folds are the primary validation schemes.
-Notebooks
-- notebooks/01_eda.ipynb: cleaning checks, descriptive analysis, outlier diagnostics, correlations and exploratory figures. Lag 0 in the lead–lag plot is descriptive only and is not a forecasting input.
-- notebooks/02_timeseries.ipynb: temporal diagnostics, past-only feature engineering, explicit leakage-safe feature selection and validation protocol.
-Both notebooks can be run in Google Colab by uploading the raw CSV when prompted.
+---
+
+## Running the Project
+
+Before running the scripts, make sure the source CSV is available at:
+
+```text
+data/raw/combined_gee_pm25.csv
+```
+
+Run the following commands from the repository root, in order.
+
+### 1. Data Preprocessing & EDA
+
+```bash
+python scripts/run_eda.py
+```
+
+This step performs data cleaning and generates exploratory summary tables and figures.
+
+### 2. Feature Engineering
+
+```bash
+python -m src.features
+```
+
+This step constructs the one-day-ahead feature dataset using historical observations.
+
+### 3. Validation Fold Generation
+
+```bash
+python -m src.splits
+```
+
+This step generates the temporal, spatial, and random diagnostic validation folds.
+
+---
+
+## Feature Engineering & Leakage Prevention
+
+The forecasting setup follows a past-only information rule:
+
+**To predict PM2.5 on day *t*, the model must not use measurements from day *t*.**
+
+The feature-selection function:
+
+`src.features.get_model_feature_columns()`
+
+uses an explicit whitelist of eligible predictors.
+
+The selected features include:
+
+- Historical lagged measurements.
+- Past-only rolling statistics.
+- Historical differences.
+- Calendar variables known in advance.
+
+The following variables are excluded from model inputs:
+
+- Raw same-day environmental measurements.
+- Target-day PM2.5.
+- Station identifiers.
+- Latitude and longitude.
+- Isolation Forest anomaly flags.
+
+The expected number of eligible features is **23**, provided that all nine source predictors and the required engineered feature columns are available. The actual number is printed when the pipeline runs.
+
+Raw measurements and metadata may remain in the engineered dataset for inspection and auditing, but they must not be passed to the forecasting model.
+
+---
+
+## Validation Strategy
+
+The project uses multiple validation approaches:
+
+- **Temporal validation:** evaluates generalization across time.
+- **Spatial validation:** evaluates generalization across stations.
+- **Random K-Fold:** used for diagnostic comparison only.
+
+Temporal and spatial validation are the primary evaluation strategies.
+
+Fold indices refer to rows of the development dataset after sorting and resetting the index.
+
+The final future test period is:
+
+`2025-04-07` to `2026-04-06`.
+
+---
+
+## Notebooks
+
+| Notebook | Description |
+|---|---|
+| `01_eda.ipynb` | Data cleaning checks, descriptive statistics, outlier diagnostics, correlations, and exploratory figures. |
+| `02_timeseries.ipynb` | Temporal diagnostics, past-only feature engineering, leakage-safe feature selection, and validation protocol. |
+
+**Important:** Lag 0 in the exploratory lead–lag analysis is descriptive only. It is not used as a forecasting input.
+
+Both notebooks can be executed in Google Colab by uploading the original CSV when required.
+
+---
+
+## Project Status
+
+The current stage focuses on:
+
+- Data preprocessing.
+- Exploratory Data Analysis.
+- Time-series analysis.
+- Past-only feature engineering.
+- Leakage prevention.
+- Temporal and spatial validation preparation.
+
+Model fitting, hyperparameter optimization, model comparison, explainability, and ablation studies are subsequent stages of the project.
